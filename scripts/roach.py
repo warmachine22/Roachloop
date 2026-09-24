@@ -97,7 +97,7 @@ def git(*args,allow_fail=False):
 def head():return git("rev-parse","HEAD")
 def tree():return git("write-tree")
 def commit_exists(rev):
- return run(["git","cat-file","-e",f"{rev}^{commit}"]).returncode==0
+ return run(["git","cat-file","-e",f"{rev}^{{commit}}"]).returncode==0
 def is_ancestor(rev):
  return commit_exists(rev) and run(["git","merge-base","--is-ancestor",rev,"HEAD"]).returncode==0
 def status_lines():return git("status","--porcelain").splitlines()
