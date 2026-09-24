@@ -769,6 +769,14 @@ def provenance_cmd(a):
 def prepush_cmd(a):
  p=root()/".git"/"hooks"/"pre-push";p.write_text("#!/usr/bin/env bash\nset -e\npython3 scripts/roach.py verify-project\n");p.chmod(0o755);print("installed",p)
 
+def safe_extract_tar(tf,dest):
+ base=Path(dest).resolve()
+ for m in tf.getmembers():
+  if m.issym() or m.islnk():die("bundle contains link entry: "+m.name)
+  target=(base/m.name).resolve()
+  if base not in target.parents and target!=base:die("bundle contains unsafe path: "+m.name)
+ tf.extractall(dest)
+
 def bundle_cmd(a):
  bundles=rp("bundles");bundles.mkdir(parents=True,exist_ok=True)
  if a.action=="create":
@@ -796,7 +804,7 @@ def bundle_cmd(a):
   if not p.exists():die("bundle missing")
   errs=[]
   with tempfile.TemporaryDirectory() as td:
-   with tarfile.open(p,"r:gz") as tf:tf.extractall(td)
+   with tarfile.open(p,"r:gz") as tf:safe_extract_tar(tf,td)
    t=Path(td);meta=load(t/"bundle.json");body=dict(meta);bh=body.pop("bundle_hash",None)
    if bh!=digest_text(canonical(body)):errs.append("bundle metadata hash mismatch")
    for name,h in meta.get("contents",{}).items():
@@ -806,17 +814,31 @@ def bundle_cmd(a):
   if errs:raise SystemExit(1)
 
 def release_cmd(a):
+ path=rp("releases",a.version+".json")
+ if a.verify:
+  if not path.exists():die("release seal missing")
+  rel=load(path);body=dict(rel);rh=body.pop("release_hash",None);errs=[]
+  if rh!=digest_text(canonical(body)):errs.append("release hash mismatch")
+  if not commit_exists(rel.get("head","")):errs.append("release head commit missing")
+  for cid,expected in rel.get("checkpoint_seals",{}).items():
+   p=evidence_file(cid,"seal")
+   actual=load(p,{}).get("evidence_hash") if p.exists() else None
+   if actual!=expected:errs.append(f"checkpoint seal mismatch: {cid}")
+  out={"valid":not errs,"version":a.version,"release_hash":rh,"errors":errs};json_or_print(out,a)
+  if errs:raise SystemExit(1)
+  return
  s=state();errs=all_project_errors(require_complete=True)
  unsealed=[c["id"] for c in s["checkpoints"] if c["status"] not in ("sealed","superseded")]
  if unsealed:errs.append("unsealed checkpoints: "+", ".join(unsealed))
  if errs:[print("✗",x) for x in errs];die("cannot release")
  seals={}
- for c in s["checkpoints"]:
-  if c["status"]=="sealed":seals[c["id"]]=load(evidence_file(c["id"],"seal")).get("evidence_hash")
+ for cc in s["checkpoints"]:
+  if cc["status"]=="sealed":seals[cc["id"]]=load(evidence_file(cc["id"],"seal")).get("evidence_hash")
  rel={"protocol":PROTOCOL,"version":a.version,"project":s["project"],"head":head(),"git_tree":tree(),"checkpoint_seals":seals,"requirements":[r["id"] for r in reqs() if r["status"]=="active"],"created_at":now()}
- rel["release_hash"]=digest_text(canonical(rel));save(rp("releases",a.version+".json"),rel);event("ReleaseSealed",rel)
- if a.tag:
-  r=run(["git","tag","-a",a.version,"-m",f"Roach release {a.version}"])
+ rel["release_hash"]=digest_text(canonical(rel));save(path,rel);event("ReleaseSealed",rel)
+ if a.tag or a.sign:
+  cmd=["git","tag","-s" if a.sign else "-a",a.version,"-m",f"Roach release {a.version}"]
+  r=run(cmd)
   if r.returncode:die("git tag failed: "+r.stderr)
  json_or_print(rel,a)
 
@@ -930,7 +952,7 @@ def parser():
  q=sp.add_parser("provenance");q.add_argument("--agent",required=True);q.add_argument("--model",default="unknown");q.add_argument("--tool",default="unknown");q.add_argument("--skill-version",default="unknown");q.add_argument("--prompt");q.add_argument("--input-commit");q.add_argument("--output-commit");jout(q);q.set_defaults(fn=provenance_cmd)
  q=sp.add_parser("prepush");q.add_argument("action",choices=["install"]);q.set_defaults(fn=prepush_cmd)
  q=sp.add_parser("bundle");q.add_argument("action",choices=["create","verify"]);q.add_argument("id",nargs="?");q.add_argument("--path");jout(q);q.set_defaults(fn=bundle_cmd)
- q=sp.add_parser("release");q.add_argument("version");q.add_argument("--tag",action="store_true");jout(q);q.set_defaults(fn=release_cmd)
+ q=sp.add_parser("release");q.add_argument("version");q.add_argument("--tag",action="store_true");q.add_argument("--sign",action="store_true");q.add_argument("--verify",action="store_true");jout(q);q.set_defaults(fn=release_cmd)
  q=sp.add_parser("report");q.set_defaults(fn=report_cmd)
  q=sp.add_parser("dashboard");q.set_defaults(fn=dashboard_cmd)
  q=sp.add_parser("export");q.add_argument("path");jout(q);q.set_defaults(fn=export_cmd)
