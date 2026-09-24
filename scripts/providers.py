@@ -24,6 +24,7 @@ def security(_):
  ]
  errors=[]
  for p in files({".py",".js",".ts",".tsx",".jsx",".json",".yml",".yaml",".env",".txt",".md"}):
+  if p.resolve()==Path(__file__).resolve(): continue
   try:s=p.read_text(errors="ignore")
   except Exception:continue
   if secret.search(s):errors.append(f"{p}: possible committed secret")
