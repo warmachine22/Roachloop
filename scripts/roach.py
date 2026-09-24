@@ -37,7 +37,7 @@ def git(*a):
  if r.returncode: die("git "+" ".join(a)+": "+r.stderr.strip())
  return r.stdout.strip()
 def tree(): return git("write-tree")
-def head(): return git("rev-parse","HEAD")
+def head(): return git("rev-parse","HEAD")\ndef code_dirty():\n return any(".roach/" not in line for line in git("status","--porcelain").splitlines())
 def now(): return time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime())
 def digest(s): return hashlib.sha256(s.encode()).hexdigest()
 def event(kind,data):
@@ -122,7 +122,7 @@ def check_cp(s,c):
   if not p.exists():errs.append("missing behavior receipt")
   else:
    rec=load(p)
-   if git("status","--porcelain") or rec.get("git_tree")!=tree():errs.append("behavior evidence is stale: working tree or Git tree changed")
+   if code_dirty() or rec.get("git_tree")!=tree():errs.append("behavior evidence is stale: implementation files or Git tree changed")
    body=dict(rec);rh=body.pop("receipt_hash",None)
    if rh!=digest(json.dumps(body,sort_keys=True,separators=(",",":"))):errs.append("behavior receipt hash mismatch")
  if c["status"]=="sealed":
