@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop Requirement",
+  "type": "object",
+  "required": [
+    "id",
+    "statement",
+    "status",
+    "kind",
+    "priority"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^(FR|QR)-[0-9]+$"
+    },
+    "statement": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "active",
+        "superseded",
+        "blocked",
+        "unknown"
+      ]
+    },
+    "kind": {
+      "enum": [
+        "functional",
+        "quality"
+      ]
+    },
+    "priority": {
+      "type": "string"
+    },
+    "acceptance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
