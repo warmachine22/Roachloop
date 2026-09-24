@@ -122,7 +122,7 @@ def check_cp(s,c):
   if not p.exists():errs.append("missing behavior receipt")
   else:
    rec=load(p)
-   if rec.get("git_tree")!=tree():errs.append("behavior evidence is stale: Git tree changed")
+   if git("status","--porcelain") or rec.get("git_tree")!=tree():errs.append("behavior evidence is stale: working tree or Git tree changed")
    body=dict(rec);rh=body.pop("receipt_hash",None)
    if rh!=digest(json.dumps(body,sort_keys=True,separators=(",",":"))):errs.append("behavior receipt hash mismatch")
  if c["status"]=="sealed":
