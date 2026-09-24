@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop Release Seal",
+  "type": "object",
+  "required": [
+    "protocol",
+    "version",
+    "project",
+    "head",
+    "git_tree",
+    "checkpoint_seals",
+    "requirements",
+    "created_at",
+    "release_hash"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "project": {
+      "type": "string"
+    },
+    "head": {
+      "type": "string"
+    },
+    "git_tree": {
+      "type": "string"
+    },
+    "checkpoint_seals": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "release_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
