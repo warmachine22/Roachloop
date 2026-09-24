@@ -1,5 +1,19 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verify Roach Loop</title><link rel="stylesheet" href="/site/style.css"></head><body><main><p class="eyebrow">VERIFY IT</p><h1>Do not trust the website.</h1><p class="lead">Clone the repository and independently inspect the protocol, run the hostile test suite, and ask Roach for its own capability model.</p><section><h2>1. Clone and test</h2><pre><code>git clone https://github.com/warmachine22/Roachloop.git
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Verify Roach Loop</title><link rel="stylesheet" href="/site/style.css"></head><body><main><p class="eyebrow">VERIFY IT</p><h1>Do not trust the website.</h1><p class="lead">Clone the repository and independently inspect the protocol, run the hostile test suite, and ask Roach for its own capability model.</p><section><h2>Live GitHub verification</h2><div id="live-proof"><p>Loading public workflow status…</p></div></section><section><h2>1. Clone and test</h2><pre><code>git clone https://github.com/warmachine22/Roachloop.git
 cd Roachloop
 python3 -m unittest discover -s tests -v</code></pre></section><section><h2>2. Inspect the executable capability registry</h2><pre><code>python3 scripts/roach.py capabilities --json</code></pre></section><section><h2>3. Read the security model</h2><p>See <code>THREAT-MODEL.md</code>, <code>ROACH-PROTOCOL.md</code>, the schemas under <code>schemas/</code>, and the provider contract under <code>providers/</code>.</p></section><section><h2>4. Verify any Roach-managed project</h2><pre><code>python3 scripts/roach.py verify-project
 python3 scripts/roach.py freshness --json
-python3 scripts/roach.py report</code></pre><p>The verifier reconstructs the ledger, traceability, evidence manifests, architecture constraints, secret checks, and freshness without asking an AI model whether the AI followed the process.</p></section><section><h2>5. Ask why</h2><pre><code>python3 scripts/roach.py why CP-014 --json</code></pre><p>Every green state should have an inspectable evidence path. Every invalid state should say what is missing or stale.</p></section><p><a href="/launch">Launch Roach Loop →</a></p></main></body></html>
+python3 scripts/roach.py report</code></pre><p>The verifier reconstructs the ledger, traceability, evidence manifests, architecture constraints, secret checks, and freshness without asking an AI model whether the AI followed the process.</p></section><section><h2>5. Ask why</h2><pre><code>python3 scripts/roach.py why CP-014 --json</code></pre><p>Every green state should have an inspectable evidence path. Every invalid state should say what is missing or stale.</p></section><p><a href="/launch">Launch Roach Loop →</a></p><script>
+(async function(){
+ const box=document.getElementById('live-proof');
+ try{
+  const [core,dog]=await Promise.all([
+   fetch('https://api.github.com/repos/warmachine22/Roachloop/actions/workflows/roach.yml/runs?per_page=1').then(r=>r.json()),
+   fetch('https://api.github.com/repos/warmachine22/Roachloop/actions/workflows/self-dogfood.yml/runs?per_page=1').then(r=>r.json())
+  ]);
+  const a=core.workflow_runs&&core.workflow_runs[0], b=dog.workflow_runs&&dog.workflow_runs[0];
+  box.innerHTML='<p><strong>Core CI:</strong> '+(a?a.status+' / '+(a.conclusion||'running'):'unavailable')+
+   '<br><strong>Self-dogfood:</strong> '+(b?b.status+' / '+(b.conclusion||'running'):'unavailable')+
+   '</p><p class="small">This display comes from GitHub’s public Actions API. Verify the underlying runs in GitHub rather than trusting this rendering.</p>';
+ }catch(e){box.textContent='Live status unavailable. Use the GitHub Actions links in the repository.'}
+})();
+</script></main></body></html>
