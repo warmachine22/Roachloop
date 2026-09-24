@@ -494,7 +494,7 @@ def review_cmd(a):
  }
  if c["status"] not in allowed[a.gate]:die(f"{a.gate} review not allowed from {c['status']}")
  ctx=digest_text(context_packet(s,c,a.role))
- rec={"gate":a.gate,"reviewer":a.reviewer,"model":a.model,"role":a.role,"context_hash":ctx,"verdict":a.verdict,"finding":a.finding,"head":head(),"at":now()}
+ rec={"checkpoint":c["id"],"gate":a.gate,"reviewer":a.reviewer,"model":a.model,"role":a.role,"context_hash":ctx,"verdict":a.verdict,"finding":a.finding,"head":head(),"at":now()}
  if a.gate=="adversarial":
   prior=[x for x in c["review_records"] if x["gate"]=="adversarial"]
   if any(x["reviewer"]==a.reviewer for x in prior):die("adversarial reviewers must be independent identities")
