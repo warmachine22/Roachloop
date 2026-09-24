@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop Evidence",
+  "type": "object",
+  "required": [
+    "protocol",
+    "checkpoint",
+    "created_at",
+    "evidence_hash",
+    "proof_type"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string"
+    },
+    "checkpoint": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "evidence_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "proof_type": {
+      "type": "string"
+    },
+    "proof_strength": {
+      "type": "string"
+    },
+    "head": {
+      "type": "string"
+    },
+    "git_tree": {
+      "type": "string"
+    },
+    "exit_code": {
+      "type": "integer"
+    }
+  }
+}
