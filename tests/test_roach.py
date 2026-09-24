@@ -120,6 +120,16 @@ class RoachTests(unittest.TestCase):
   d=self.repo();self.init(d);self.addcp(d);self.ok(self.rr(d,"dashboard"));self.assertTrue((d/".roach"/"reports"/"dashboard.html").exists())
  def test_reproduce_receipt(self):
   d=self.repo();self.init(d);self.addcp(d,no_ui=True);self.ok(self.rr(d,"start","CP-001"));self.ok(self.rr(d,"verify","CP-001"));self.ok(self.rr(d,"reproduce","CP-001"))
+ def test_complete_mode_requires_sealed_requirement(self):
+  d=self.repo();self.init(d);self.addcp(d,no_ui=True);self.assertNotEqual(self.rr(d,"verify-project","--complete").returncode,0)
+ def test_scope_trace_rejects_unrelated_changed_file(self):
+  d=self.repo();(d/"other.txt").write_text("x\n");self.commit(d,"add other");self.init(d);self.addcp(d,no_ui=True,files="app.txt");self.ok(self.rr(d,"start","CP-001"))
+  (d/"app.txt").write_text("ok\n");(d/"other.txt").write_text("out of scope\n");self.commit(d,"feature plus drift");self.ok(self.rr(d,"verify","CP-001"))
+  self.assertNotEqual(self.rr(d,"check","CP-001").returncode,0)
+ def test_product_export_and_check(self):
+  d=self.repo();self.init(d);self.ok(self.rr(d,"requirement","add","FR-001","A"));self.ok(self.rr(d,"product","export"));self.assertTrue((d/"PRODUCT.md").exists());self.ok(self.rr(d,"product","check"))
+ def test_dependency_check_executes_verifier(self):
+  d=self.repo();self.init(d);self.ok(self.rr(d,"dependency","add","--id","EXT-1","--source","vendor","--verification","true"));r=self.rr(d,"dependency","check","--id","EXT-1","--json");self.ok(r);self.assertEqual(json.loads(r.stdout)["status"],"verified")
  def test_provenance_hashes_prompt(self):
   d=self.repo();self.init(d);r=self.rr(d,"provenance","--agent","codex","--model","test","--prompt","secret prompt","--json");self.ok(r);o=json.loads(r.stdout);self.assertTrue(o["prompt_hash"]);self.assertNotIn("secret prompt",json.dumps(o))
  def test_human_artifact_must_exist_or_be_head(self):
