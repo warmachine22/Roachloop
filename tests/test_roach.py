@@ -34,7 +34,8 @@ class RoachTests(unittest.TestCase):
   d=self.repo();self.init(d);self.ok(self.rr(d,"doctor"))
  def test_capability_registry_has_70(self):
   d=self.repo();self.init(d);r=self.rr(d,"capabilities","--json");self.ok(r)
-  self.assertEqual(len(json.loads(r.stdout)["protocol_capabilities"]),70)
+  o=json.loads(r.stdout);self.assertEqual(len(o["protocol_capabilities"]),70);self.assertTrue(o["all_implemented"])
+  self.assertTrue(all(x["available"] for x in o["protocol_capabilities"] if x["id"] in ("RL-45","RL-46","RL-47","RL-48")))
  def test_non_ui_gate_cannot_skip_by_design(self):
   d=self.repo();self.init(d);self.addcp(d)
   r=self.rr(d,"review","CP-001","adversarial","pass","--reviewer","A")
