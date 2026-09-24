@@ -201,7 +201,19 @@ def manifest_errors(cid):
  return errs
 def relevant_files(c):
  return c.get("files") or tracked_files()
+def relevant_snapshot(c):
+ patterns=relevant_files(c); files=[]
+ for p in tracked_files():
+  if glob_any(p,patterns) or p in patterns: files.append(p)
+ for p in patterns:
+  if "*" not in p and "?" not in p and "[" not in p and (root()/p).is_file() and p not in files: files.append(p)
+ return {p:file_hash(p) for p in sorted(set(files))}
 def evidence_stale(c,evidence):
+ recorded=evidence.get("relevant_file_hashes")
+ if recorded is not None:
+  current=relevant_snapshot(c)
+  changed=sorted(set(k for k in set(recorded)|set(current) if recorded.get(k)!=current.get(k)))
+  return bool(changed),changed
  base=evidence.get("head")
  if not base:return True,["evidence has no head"]
  changed=touched_since(base)
@@ -355,7 +367,7 @@ def verify_cmd(a):
  if implementation_dirty():die("commit implementation candidate before verification: "+", ".join(implementation_dirty()))
  policy=PROFILE_POLICY[s["profile"]];use_sandbox=a.sandbox or policy["sandbox"]
  r=sandbox_run(c["verify"]) if use_sandbox else run(c["verify"])
- rec=write_evidence(c["id"],"behavior",{"assertion":"checkpoint verification command exits 0","proof_type":"execution","proof_strength":"executable","requirements":c["requirements"],"head":head(),"git_tree":tree(),"relevant_files":relevant_files(c),"command":c["verify"],"sandboxed":use_sandbox,"environment":environment_fingerprint(),"exit_code":r.returncode,"stdout_sha256":digest_text(redact(r.stdout)),"stderr_sha256":digest_text(redact(r.stderr))})
+ rec=write_evidence(c["id"],"behavior",{"assertion":"checkpoint verification command exits 0","proof_type":"execution","proof_strength":"executable","requirements":c["requirements"],"head":head(),"git_tree":tree(),"relevant_files":relevant_files(c),"relevant_file_hashes":relevant_snapshot(c),"command":c["verify"],"sandboxed":use_sandbox,"environment":environment_fingerprint(),"exit_code":r.returncode,"stdout_sha256":digest_text(redact(r.stdout)),"stderr_sha256":digest_text(redact(r.stderr))})
  event("VerificationCompleted",{"checkpoint":c["id"],"evidence_hash":rec["evidence_hash"],"exit_code":r.returncode,"head":head()})
  if r.returncode:
   c["gates"]["behavior"]="failed";put_state(s);print(redact(r.stdout));print(redact(r.stderr),file=sys.stderr);die("verification failed",1)
@@ -370,6 +382,13 @@ def review_cmd(a):
  s=state();c=cp(s,a.id)
  if a.gate not in ("ui","adversarial","security","accessibility","performance","migration"):die("unsupported review gate")
  if a.verdict not in ("pass","fail"):die("verdict must be pass/fail")
+ allowed={
+  "ui":{"behavior_verified"},"adversarial":{"behavior_verified","ui_verified"},
+  "security":{"behavior_verified","ui_verified","adversarial_verified"},
+  "accessibility":{"behavior_verified","ui_verified"},"performance":{"behavior_verified","ui_verified","adversarial_verified"},
+  "migration":{"behavior_verified","ui_verified","adversarial_verified"},
+ }
+ if c["status"] not in allowed[a.gate]:die(f"{a.gate} review not allowed from {c['status']}")
  ctx=digest_text(context_packet(s,c,a.role))
  rec={"gate":a.gate,"reviewer":a.reviewer,"model":a.model,"role":a.role,"context_hash":ctx,"verdict":a.verdict,"finding":a.finding,"head":head(),"at":now()}
  if a.gate=="adversarial":
