@@ -147,7 +147,10 @@ class RoachTests(unittest.TestCase):
    self.assertEqual(r.returncode,0,r.stderr+r.stdout)
  def test_fast_profile_full_lifecycle_seals(self):
   d=self.repo();self.init(d,"fast");self.addcp(d,no_ui=True);self.ok(self.rr(d,"start","CP-001"));self.ok(self.rr(d,"verify","CP-001"))
-  self.ok(self.rr(d,"approve","CP-001","--approver","owner"));self.ok(self.rr(d,"audit","CP-001"));self.ok(self.rr(d,"seal","CP-001"));self.ok(self.rr(d,"verify-project"))
+  self.ok(self.rr(d,"approve","CP-001","--approver","owner"));self.ok(self.rr(d,"audit","CP-001"));self.ok(self.rr(d,"seal","CP-001"));self.ok(self.rr(d,"verify-project","--complete"))
+ def test_portable_bundle_roundtrip(self):
+  d=self.repo();self.init(d,"fast");self.addcp(d,no_ui=True);self.ok(self.rr(d,"start","CP-001"));self.ok(self.rr(d,"verify","CP-001"));self.ok(self.rr(d,"approve","CP-001","--approver","owner"));self.ok(self.rr(d,"audit","CP-001"));self.ok(self.rr(d,"seal","CP-001"))
+  self.ok(self.rr(d,"bundle","create","CP-001"));bundle=d/".roach"/"bundles"/"CP-001.tar.gz";self.assertTrue(bundle.exists());self.ok(self.rr(d,"bundle","verify","--path",str(bundle)))
  def test_prepush_installer(self):
   d=self.repo();self.init(d);self.ok(self.rr(d,"prepush","install"));self.assertTrue((d/".git"/"hooks"/"pre-push").exists())
 
