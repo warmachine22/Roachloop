@@ -175,6 +175,14 @@ def ledger_errors():
   if h!=digest_text(canonical(body)):errs.append(f"ledger line {i} hash mismatch")
   prev=h or ""
  return errs
+def ledger_objects():
+ p=rp("ledger.jsonl")
+ if not p.exists():return []
+ out=[]
+ for line in p.read_text().splitlines():
+  try:out.append(json.loads(line))
+  except Exception:pass
+ return out
 def state():return load(rp("state.json"))
 def put_state(s):save(rp("state.json"),s)
 def reqs():return load(rp("requirements.json"),[])
@@ -224,6 +232,13 @@ def manifest_errors(cid):
   q=evidence_dir(cid)/name
   if not q.exists():errs.append(f"{cid}: manifest file missing {name}")
   elif digest_bytes(q.read_bytes())!=meta.get("sha256"):errs.append(f"{cid}: evidence tampered {name}")
+  elif name.endswith(".json"):
+   try:
+    obj=load(q)
+    if "evidence_hash" in obj:
+     body=dict(obj);eh=body.pop("evidence_hash",None)
+     if eh!=digest_text(canonical(body)):errs.append(f"{cid}: internal evidence hash mismatch {name}")
+   except Exception:errs.append(f"{cid}: invalid evidence JSON {name}")
  return errs
 def relevant_files(c):
  return c.get("files") or tracked_files()
@@ -322,6 +337,40 @@ def all_project_errors(require_complete=False):
  if require_complete:
   for r in sorted(active-satisfied):errs.append("active requirement not satisfied by a sealed checkpoint "+r)
  return errs
+def gate_event_errors(c):
+ events=ledger_objects();errs=[];cid=c["id"]
+ def matches(kind,pred=lambda d:True):
+  return [e for e in events if e.get("event")==kind and pred(e.get("data",{}))]
+ if c["gates"].get("behavior")=="passed":
+  p=evidence_file(cid,"behavior")
+  eh=load(p,{}).get("evidence_hash") if p.exists() else None
+  if not matches("VerificationCompleted",lambda d:d.get("checkpoint")==cid and d.get("exit_code")==0 and d.get("evidence_hash")==eh):
+   errs.append(f"{cid}: behavior passed without matching VerificationCompleted ledger event")
+ if c["gates"].get("human")=="passed":
+  p=evidence_file(cid,"human");eh=load(p,{}).get("evidence_hash") if p.exists() else None
+  if not matches("HumanApproved",lambda d:d.get("checkpoint")==cid and d.get("evidence_hash")==eh):
+   errs.append(f"{cid}: human passed without matching HumanApproved ledger event")
+ if c["gates"].get("audit")=="passed":
+  p=evidence_file(cid,"audit");eh=load(p,{}).get("evidence_hash") if p.exists() else None
+  if not matches("AuditPassed",lambda d:d.get("checkpoint")==cid and d.get("evidence_hash")==eh):
+   errs.append(f"{cid}: audit passed without matching AuditPassed ledger event")
+ if c["status"]=="sealed":
+  p=evidence_file(cid,"seal");eh=load(p,{}).get("evidence_hash") if p.exists() else None
+  if not matches("CheckpointSealed",lambda d:d.get("checkpoint")==cid and d.get("seal_hash")==eh):
+   errs.append(f"{cid}: sealed without matching CheckpointSealed ledger event")
+ if c["gates"].get("adversarial")=="passed":
+  passes=matches("ReviewRecorded",lambda d:d.get("checkpoint")==cid and d.get("gate")=="adversarial" and d.get("verdict")=="pass")
+  reviewers={e.get("data",{}).get("reviewer") for e in passes}
+  if len(reviewers)<2:errs.append(f"{cid}: adversarial gate lacks two independent passing ledger reviews")
+ if c["gates"].get("ui")=="passed" and not matches("ReviewRecorded",lambda d:d.get("checkpoint")==cid and d.get("gate")=="ui" and d.get("verdict")=="pass"):
+  errs.append(f"{cid}: UI passed without matching review ledger event")
+ for g in c.get("extra_gates",[]):
+  if c["gates"].get(g)=="passed":
+   has_plugin=matches("PluginExecuted",lambda d:d.get("checkpoint")==cid and d.get("plugin")==g and d.get("exit_code")==0)
+   has_review=matches("ReviewRecorded",lambda d:d.get("checkpoint")==cid and d.get("gate")==g and d.get("verdict")=="pass")
+   if not (has_plugin or has_review):errs.append(f"{cid}: {g} passed without provider/review ledger evidence")
+ return errs
+
 def checkpoint_errors(s,c):
  errs=[];known={r["id"] for r in reqs()}
  for x in c["requirements"]:
@@ -331,6 +380,7 @@ def checkpoint_errors(s,c):
   orphan=out_of_scope_changes(c)
   if orphan:errs.append(c["id"]+": changed files outside declared checkpoint scope: "+", ".join(orphan))
  if evidence_dir(c["id"]).exists():errs+=manifest_errors(c["id"])
+ errs += gate_event_errors(c)
  if c["status"]=="sealed":
   for g in required_gates(s,c):
    if c["gates"].get(g)!="passed":errs.append(f"{c['id']}: sealed checkpoint lacks {g}")
