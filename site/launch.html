@@ -1,10 +1,56 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Launch Roach Loop</title><link rel="stylesheet" href="/site/style.css"></head><body><main><p class="eyebrow">LAUNCH</p><h1>Give your coding agent a smaller rulebook.</h1><p class="lead">Roach Loop moves process enforcement into software so Claude or Codex can spend context on the code.</p><section><h2>Clone</h2><pre><code>git clone https://github.com/warmachine22/Roachloop.git
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Get started with Roach Loop</title><link rel="stylesheet" href="/site/style.css"></head><body><nav><a class="brand" href="/">ROACH LOOP</a><div><a href="/how-it-works">How it works</a><a href="https://github.com/warmachine22/Roachloop">GitHub ↗</a></div></nav><main><header class="pagehead"><p class="eyebrow">GET STARTED</p><h1>The easiest install is:<br><span>tell your agent to do it.</span></h1><p class="lead">Paste the prompt below into Claude Code, Codex, or another coding agent while it is working in your project repository.</p></header>
+<section><h2>1. Copy this setup prompt</h2><div class="prompt"><pre><code>I want you to install and configure Roach Loop in this repository.
+
+Roach Loop repository:
+https://github.com/warmachine22/Roachloop
+
+Read the Roach Loop documentation and protocol first.
+
+Then:
+1. Install Roach Loop into this project.
+2. Initialize it for this project.
+3. Inspect the existing repository and understand what the product currently does.
+4. Help me turn my product intent into durable Roach Loop requirements and checkpoints.
+5. Preserve existing work. Do not rewrite or delete project history just to fit the workflow.
+6. Use Roach Loop as the assurance workflow for substantial development.
+7. Never fabricate, manually pass, or bypass Roach-managed evidence or gates.
+8. Run Roach Loop's doctor/status checks and tell me clearly if anything needs my decision.
+9. Once configured, explain in plain English what was set up and what I should do next.
+
+I am the authority on product intent and subjective acceptance.
+You may implement and review work, but deterministic facts must be verified by Roach Loop.</code></pre></div></section>
+<section><h2>2. For everyday work, paste this</h2><div class="prompt"><pre><code>This project uses Roach Loop.
+
+Before substantial work, run:
+python3 scripts/roach.py next
+
+Load the active checkpoint context for your role.
+Work only against the declared requirements and checkpoint.
+Do not manually edit Roach-managed state or fabricate evidence.
+Use Roach Loop to execute verification and record proof.
+Resolve stale, failed, or missing evidence instead of bypassing it.
+Before claiming completion, run:
+python3 scripts/roach.py verify-project
+
+If you need a product decision, ask me. Otherwise continue the Roach Loop.</code></pre></div></section>
+<section><h2>3. Switching to a different coding agent?</h2><p class="big muted">Open the same repository in the new agent and give it this:</p><div class="prompt"><pre><code>This repository uses Roach Loop and may have been worked on by another coding agent.
+
+Do not assume prior chat context.
+Treat the repository and Roach Loop state as the durable source of project context.
+
+Run:
+python3 scripts/roach.py doctor
+python3 scripts/roach.py status
+python3 scripts/roach.py next
+
+Read the relevant Roach Loop context packet and continue from the recorded project state.
+Do not redo completed work unless its evidence is stale or invalid.</code></pre></div></section>
+<section><h2>Manual install</h2><p>If you prefer to do it yourself:</p><pre><code>git clone https://github.com/warmachine22/Roachloop.git
 cd Roachloop
-python3 -m unittest discover -s tests -v</code></pre></section><section><h2>Initialize a project</h2><pre><code>python3 scripts/roach.py init --name "My Product"</code></pre></section><section><h2>Add intent and a checkpoint</h2><pre><code>python3 scripts/roach.py requirement add FR-001 "User can sign in"
-python3 scripts/roach.py checkpoint add CP-001 "Sign in" --requirements FR-001 --verify "pytest -q tests/test_login.py"
-python3 scripts/roach.py start CP-001
-python3 scripts/roach.py verify CP-001</code></pre></section><section><h2>Agent instruction</h2><pre><code>This repository uses Roach Loop.
-Run python3 scripts/roach.py next before substantial work.
-Use context &lt;checkpoint&gt; --role worker.
-Never manually edit Roach-managed gate state.
-Run verify-project before claiming completion.</code></pre></section><section><h2>Independent check</h2><pre><code>python3 scripts/roach.py verify-project</code></pre><p>That check is deterministic; it does not ask an AI whether the AI followed the process.</p></section></main></body></html>
+python3 -m unittest discover -s tests -v
+
+# Or copy/install Roach Loop into your existing repository
+./install.sh
+python3 scripts/roach.py init --name "My Product"
+python3 scripts/roach.py doctor</code></pre><p><a href="https://github.com/warmachine22/Roachloop">Read the full repository documentation →</a></p></section>
+<section class="cta"><h2>Your AI can change.<br>Your project can keep going.</h2><a class="button" href="https://github.com/warmachine22/Roachloop">Open Roach Loop on GitHub →</a></section></main><footer><div><b>ROACH LOOP</b></div><div><a href="/">Home</a><a href="/how-it-works">How it works</a></div></footer></body></html>
