@@ -110,6 +110,23 @@ class RoachTests(unittest.TestCase):
   d=self.repo();self.init(d);self.ok(self.rr(d,"benchmark","record","--name","trial","--mode","roach","--tokens","100"));r=self.rr(d,"benchmark","summary","--json");self.ok(r);self.assertEqual(json.loads(r.stdout)["runs"],1)
  def test_examples(self):
   d=self.repo();self.init(d);self.ok(self.rr(d,"examples"));self.assertTrue((d/"examples"/"web-app.md").exists())
+ def test_environment_freeze_and_check(self):
+  d=self.repo();self.init(d);self.ok(self.rr(d,"environment","freeze"));self.ok(self.rr(d,"environment","check"))
+ def test_provenance_hashes_prompt(self):
+  d=self.repo();self.init(d);r=self.rr(d,"provenance","--agent","codex","--model","test","--prompt","secret prompt","--json");self.ok(r);o=json.loads(r.stdout);self.assertTrue(o["prompt_hash"]);self.assertNotIn("secret prompt",json.dumps(o))
+ def test_human_artifact_must_exist_or_be_head(self):
+  d=self.repo();self.init(d);self.addcp(d,no_ui=True)
+  # Fast profile is tested separately; invalid arbitrary artifact is always rejected.
+  r=self.rr(d,"approve","CP-001","--approver","owner","--artifact","does-not-exist")
+  self.assertNotEqual(r.returncode,0)
+ def test_report_includes_pdf(self):
+  d=self.repo();self.init(d);self.addcp(d);self.ok(self.rr(d,"report"));self.assertTrue((d/".roach"/"reports"/"assurance.pdf").read_bytes().startswith(b"%PDF"))
+ def test_builtin_providers(self):
+  d=self.repo();self.init(d)
+  # Provider executable itself should be callable and the simple site-less checks pass.
+  for name in ("security","accessibility","performance","migration"):
+   r=subprocess.run(["python3",str(ROOT/"scripts"/"providers.py"),name],cwd=d,text=True,capture_output=True)
+   self.assertEqual(r.returncode,0,r.stderr+r.stdout)
  def test_prepush_installer(self):
   d=self.repo();self.init(d);self.ok(self.rr(d,"prepush","install"));self.assertTrue((d/".git"/"hooks"/"pre-push").exists())
 
