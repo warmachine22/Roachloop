@@ -443,7 +443,9 @@ def finding_cmd(a):
 
 def approve_cmd(a):
  s=state();c=cp(s,a.id)
- if c["status"]!="adversarial_verified" and s["profile"]!="fast":die("human approval requires adversarial verification")
+ if s["profile"]=="fast" and c["status"]=="behavior_verified":
+  transition(c,"adversarial_verified","fast profile omits UI/adversarial gates")
+ if c["status"]!="adversarial_verified":die("human approval requires the policy's pre-human gates")
  artifact=a.artifact or head();artifact_record={"kind":"git-head","value":head()}
  if a.artifact:
   p=Path(a.artifact)
