@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop Ledger Event",
+  "type": "object",
+  "required": [
+    "protocol",
+    "event",
+    "at",
+    "actor",
+    "data",
+    "prev",
+    "hash"
+  ],
+  "properties": {
+    "protocol": {
+      "type": "string"
+    },
+    "event": {
+      "type": "string"
+    },
+    "at": {
+      "type": "string"
+    },
+    "actor": {
+      "type": "string"
+    },
+    "data": {
+      "type": "object"
+    },
+    "prev": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
