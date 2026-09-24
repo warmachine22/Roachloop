@@ -127,6 +127,9 @@ class RoachTests(unittest.TestCase):
   for name in ("security","accessibility","performance","migration"):
    r=subprocess.run(["python3",str(ROOT/"scripts"/"providers.py"),name],cwd=d,text=True,capture_output=True)
    self.assertEqual(r.returncode,0,r.stderr+r.stdout)
+ def test_fast_profile_full_lifecycle_seals(self):
+  d=self.repo();self.init(d,"fast");self.addcp(d,no_ui=True);self.ok(self.rr(d,"start","CP-001"));self.ok(self.rr(d,"verify","CP-001"))
+  self.ok(self.rr(d,"approve","CP-001","--approver","owner"));self.ok(self.rr(d,"audit","CP-001"));self.ok(self.rr(d,"seal","CP-001"));self.ok(self.rr(d,"verify-project"))
  def test_prepush_installer(self):
   d=self.repo();self.init(d);self.ok(self.rr(d,"prepush","install"));self.assertTrue((d/".git"/"hooks"/"pre-push").exists())
 
