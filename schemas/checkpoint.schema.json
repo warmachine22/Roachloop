@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop v3 Checkpoint",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "status",
+    "requirements",
+    "verify",
+    "files",
+    "needs_ui_gate",
+    "risk",
+    "gates",
+    "review_records",
+    "receipts"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "status": {
+      "enum": [
+        "planned",
+        "implementing",
+        "behavior_verified",
+        "ui_verified",
+        "adversarial_verified",
+        "human_accepted",
+        "audited",
+        "sealed",
+        "blocked",
+        "superseded"
+      ]
+    },
+    "requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verify": {
+      "type": "string",
+      "minLength": 1
+    },
+    "baseline_verify": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "mutation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "needs_ui_gate": {
+      "type": "boolean"
+    },
+    "risk": {
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "critical"
+      ]
+    },
+    "risk_signals": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "extra_gates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": {
+        "enum": [
+          "pending",
+          "passed",
+          "failed",
+          "not_applicable"
+        ]
+      }
+    },
+    "gate_notes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "review_records": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "receipts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  }
+}
