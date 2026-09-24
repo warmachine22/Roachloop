@@ -8,7 +8,7 @@ class RoachTests(unittest.TestCase):
   (d/"app.txt").write_text("hello\n"); subprocess.run(["git","add","."],cwd=d,check=True); subprocess.run(["git","commit","-qm","init"],cwd=d,check=True); return d
  def rr(self,d,*a):return subprocess.run(["python3",str(ROACH),*a],cwd=d,text=True,capture_output=True)
  def test_init_doctor(self):
-  d=self.repo();self.assertEqual(self.rr(d,"init","--name","Test").returncode,0);self.assertEqual(self.rr(d,"doctor").returncode,0)
+  d=self.repo();r=self.rr(d,"init","--name","Test");self.assertEqual(r.returncode,0,r.stderr);q=self.rr(d,"doctor");self.assertEqual(q.returncode,0,q.stderr)
  def test_mandatory_gate_cannot_skip(self):
   d=self.repo();self.rr(d,"init","--name","Test");self.rr(d,"requirement","add","FR-001","Works");self.rr(d,"checkpoint","add","CP-001","Test","--verify","true","--requirements","FR-001")
   self.assertNotEqual(self.rr(d,"gate","CP-001","audit","skip","--reason","no").returncode,0)
