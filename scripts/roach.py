@@ -240,10 +240,10 @@ def graph():
  return g
 def plugin_config():
  return load(rp("plugins.json"),{
-  "security":{"command":"semgrep --config auto --error .","proof":"static-analysis","requires":["semgrep"]},
-  "accessibility":{"command":"","proof":"automated-accessibility","requires":[]},
-  "performance":{"command":"","proof":"performance-measurement","requires":[]},
-  "migration":{"command":"","proof":"data-integrity","requires":[]},
+  "security":{"command":"python3 scripts/providers.py security","proof":"static-analysis","requires":["python3"]},
+  "accessibility":{"command":"python3 scripts/providers.py accessibility","proof":"automated-accessibility","requires":["python3"]},
+  "performance":{"command":"python3 scripts/providers.py performance","proof":"performance-measurement","requires":["python3"]},
+  "migration":{"command":"python3 scripts/providers.py migration","proof":"data-integrity","requires":["python3"]},
  })
 def plugin_required_available(name):
  cfg=plugin_config().get(name,{})
