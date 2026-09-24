@@ -9,7 +9,7 @@ Trusted-core goals:
 - expensive model review is risk/policy driven
 - human authority over intent remains explicit
 """
-import argparse, fnmatch, hashlib, html, json, os, platform, re, shutil, subprocess, sys, time
+import argparse, fnmatch, hashlib, html, json, os, platform, re, shutil, subprocess, sys, time, tarfile, tempfile
 from pathlib import Path
 
 PROTOCOL="roach-loop/3.0"
@@ -384,6 +384,8 @@ def checkpoint_cmd(a):
  auto,signals=detect_risk(a.title,files);risk=a.risk or auto
  if a.risk and RISK_ORDER[a.risk]<RISK_ORDER[auto]:die(f"risk cannot be silently downgraded below detected {auto} ({', '.join(signals)})")
  extra=risk_gates(risk)
+ if not a.no_ui and "accessibility" not in extra:extra.append("accessibility")
+ if "migration" in signals and "migration" not in extra:extra.append("migration")
  c={"id":a.id,"title":a.title,"status":"planned","requirements":ids,"verify":a.verify,"baseline_verify":a.baseline_verify,"mutation":a.mutation,
     "files":files,"needs_ui_gate":not a.no_ui,"risk":risk,"risk_signals":signals,"extra_gates":extra,
     "gates":{g:"pending" for g in [*CORE_GATES,*extra]},"gate_notes":{},"review_records":[],"receipts":{},"created_at":now()}
@@ -717,6 +719,42 @@ def provenance_cmd(a):
 def prepush_cmd(a):
  p=root()/".git"/"hooks"/"pre-push";p.write_text("#!/usr/bin/env bash\nset -e\npython3 scripts/roach.py verify-project\n");p.chmod(0o755);print("installed",p)
 
+def bundle_cmd(a):
+ bundles=rp("bundles");bundles.mkdir(parents=True,exist_ok=True)
+ if a.action=="create":
+  s=state();c=cp(s,a.id);errs=checkpoint_errors(s,c)
+  if errs:die("cannot bundle invalid checkpoint: "+"; ".join(errs))
+  source=evidence_dir(c["id"])
+  if not source.exists():die("checkpoint has no evidence")
+  out=Path(a.path) if a.path else bundles/f"{c['id']}.tar.gz"
+  if not out.is_absolute():out=root()/out
+  with tempfile.TemporaryDirectory() as td:
+   t=Path(td);shutil.copytree(source,t/"evidence")
+   save(t/"state.json",{"protocol":PROTOCOL,"project":s["project"],"checkpoint":c})
+   save(t/"requirements.json",[r for r in reqs() if r["id"] in c["requirements"]])
+   contents={}
+   for p in sorted(t.rglob("*")):
+    if p.is_file():contents[str(p.relative_to(t))]=digest_bytes(p.read_bytes())
+   meta={"protocol":PROTOCOL,"checkpoint":c["id"],"head":head(),"created_at":now(),"contents":contents}
+   meta["bundle_hash"]=digest_text(canonical(meta));save(t/"bundle.json",meta)
+   with tarfile.open(out,"w:gz") as tf:
+    for p in sorted(t.iterdir()):tf.add(p,arcname=p.name)
+  event("EvidenceBundleCreated",{"checkpoint":c["id"],"path":str(out),"sha256":digest_bytes(out.read_bytes())});print(out)
+ else:
+  p=Path(a.path)
+  if not p.is_absolute():p=root()/p
+  if not p.exists():die("bundle missing")
+  errs=[]
+  with tempfile.TemporaryDirectory() as td:
+   with tarfile.open(p,"r:gz") as tf:tf.extractall(td)
+   t=Path(td);meta=load(t/"bundle.json");body=dict(meta);bh=body.pop("bundle_hash",None)
+   if bh!=digest_text(canonical(body)):errs.append("bundle metadata hash mismatch")
+   for name,h in meta.get("contents",{}).items():
+    q=t/name
+    if not q.exists() or digest_bytes(q.read_bytes())!=h:errs.append("bundle content mismatch: "+name)
+  json_or_print({"valid":not errs,"errors":errs,"sha256":digest_bytes(p.read_bytes())},a)
+  if errs:raise SystemExit(1)
+
 def release_cmd(a):
  s=state();errs=all_project_errors(require_complete=True)
  unsealed=[c["id"] for c in s["checkpoints"] if c["status"] not in ("sealed","superseded")]
@@ -841,6 +879,7 @@ def parser():
  q=sp.add_parser("reproduce");q.add_argument("id");q.add_argument("--allow-environment-drift",action="store_true");jout(q);q.set_defaults(fn=reproduce_cmd)
  q=sp.add_parser("provenance");q.add_argument("--agent",required=True);q.add_argument("--model",default="unknown");q.add_argument("--tool",default="unknown");q.add_argument("--skill-version",default="unknown");q.add_argument("--prompt");q.add_argument("--input-commit");q.add_argument("--output-commit");jout(q);q.set_defaults(fn=provenance_cmd)
  q=sp.add_parser("prepush");q.add_argument("action",choices=["install"]);q.set_defaults(fn=prepush_cmd)
+ q=sp.add_parser("bundle");q.add_argument("action",choices=["create","verify"]);q.add_argument("id",nargs="?");q.add_argument("--path");jout(q);q.set_defaults(fn=bundle_cmd)
  q=sp.add_parser("release");q.add_argument("version");q.add_argument("--tag",action="store_true");jout(q);q.set_defaults(fn=release_cmd)
  q=sp.add_parser("report");q.set_defaults(fn=report_cmd)
  q=sp.add_parser("dashboard");q.set_defaults(fn=dashboard_cmd)
