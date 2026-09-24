@@ -606,7 +606,20 @@ def dependency_cmd(a):
  else:json_or_print([x for x in xs if x.get("kind")=="dependency"],a)
 
 def capability_cmd(a):
- cm=capability_model();json_or_print({"protocol":PROTOCOL,"runtime":cm,"protocol_capabilities":[{"id":i,"name":n,"implemented":True} for i,n in CAPABILITIES]},a)
+ cm=capability_model();plugins=plugin_config();items=[]
+ runtime_sensitive={
+  "RL-18":("sandbox",bool(cm.get("docker") or cm.get("podman")),"requires Docker or Podman at execution time"),
+  "RL-45":("security",plugin_required_available("security")[0],"security provider contract"),
+  "RL-46":("accessibility",plugin_required_available("accessibility")[0],"accessibility provider contract"),
+  "RL-47":("performance",plugin_required_available("performance")[0],"performance provider contract"),
+  "RL-48":("migration",plugin_required_available("migration")[0],"migration provider contract"),
+ }
+ for i,n in CAPABILITIES:
+  kind,available,note=runtime_sensitive.get(i,("core",True,"implemented by trusted core/protocol assets"))
+  items.append({"id":i,"name":n,"implemented":True,"available":available,"kind":kind,"note":note})
+ out={"protocol":PROTOCOL,"runtime":cm,"protocol_capabilities":items,"all_implemented":all(x["implemented"] for x in items),"runtime_ready":all(x["available"] for x in items if x["kind"]!="sandbox")}
+ json_or_print(out,a)
+ if getattr(a,"require_available",False) and not all(x["available"] for x in items):raise SystemExit(1)
 
 def doctor_cmd(a):
  checks={"git":(root()/".git").exists(),"state":rp("state.json").exists(),"ledger":not ledger_errors() if rp("ledger.jsonl").exists() else False,
@@ -772,8 +785,9 @@ def parser():
  q=sp.add_parser("redirect");q.add_argument("--reason",required=True);q.add_argument("--checkpoints",required=True);q.add_argument("--human",required=True);q.set_defaults(fn=redirect_cmd)
  q=sp.add_parser("architecture");q.add_argument("action",choices=["add","list","check"]);q.add_argument("--id");q.add_argument("--files");q.add_argument("--forbidden-regex");q.add_argument("--reason");jout(q);q.set_defaults(fn=architecture_cmd)
  q=sp.add_parser("dependency");q.add_argument("action",choices=["add","list"]);q.add_argument("--id");q.add_argument("--source");q.add_argument("--verification");jout(q);q.set_defaults(fn=dependency_cmd)
- for name,fn in [("status",status_cmd),("doctor",doctor_cmd),("capabilities",capability_cmd),("verify-project",verify_project_cmd)]:
+ for name,fn in [("status",status_cmd),("doctor",doctor_cmd),("verify-project",verify_project_cmd)]:
   q=sp.add_parser(name);jout(q);q.set_defaults(fn=fn)
+ q=sp.add_parser("capabilities");q.add_argument("--require-available",action="store_true");jout(q);q.set_defaults(fn=capability_cmd)
  q=sp.add_parser("next");q.set_defaults(fn=next_cmd)
  q=sp.add_parser("environment");q.add_argument("action",choices=["freeze","check"]);jout(q);q.set_defaults(fn=environment_cmd)
  q=sp.add_parser("reproduce");q.add_argument("id");q.add_argument("--allow-environment-drift",action="store_true");jout(q);q.set_defaults(fn=reproduce_cmd)
