@@ -96,6 +96,10 @@ def git(*args,allow_fail=False):
  return r.stdout.strip()
 def head():return git("rev-parse","HEAD")
 def tree():return git("write-tree")
+def commit_exists(rev):
+ return run(["git","cat-file","-e",f"{rev}^{commit}"]).returncode==0
+def is_ancestor(rev):
+ return commit_exists(rev) and run(["git","merge-base","--is-ancestor",rev,"HEAD"]).returncode==0
 def status_lines():return git("status","--porcelain").splitlines()
 def implementation_dirty():
  return [x for x in status_lines() if ".roach/" not in x and not x.endswith(" .roach")]
@@ -247,6 +251,8 @@ def objective_receipt_valid(c):
  r=load(p);body=dict(r);rh=body.pop("evidence_hash",None);errs=[]
  if rh!=digest_text(canonical(body)):errs.append("behavior receipt hash mismatch")
  if r.get("exit_code")!=0:errs.append("behavior verification did not pass")
+ if not r.get("head") or not commit_exists(r.get("head")):errs.append("behavior evidence references a missing commit")
+ elif not is_ancestor(r.get("head")):errs.append("behavior evidence commit is not an ancestor of current HEAD")
  stale,files=evidence_stale(c,r)
  if stale:errs.append("behavior evidence stale due to: "+", ".join(files))
  return errs
@@ -290,7 +296,7 @@ def architecture_errors():
 def secret_errors():
  errs=[]
  secret_rx=re.compile(r"(gh[pousr]_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)")
- for base in [rp("evidence"),rp("reports")]:
+ for base in [rp()]:
   if not base.exists():continue
   for p in base.rglob("*"):
    if p.is_file():
@@ -348,6 +354,11 @@ def requirement_cmd(a):
   r=next((x for x in rs if x["id"]==a.id),None)
   if not r:die("unknown requirement")
   r["status"]="superseded";r["superseded_by"]=a.by;r["superseded_at"]=now();put_reqs(rs);event("RequirementSuperseded",r);json_or_print(r,a)
+ elif a.action=="status":
+  r=next((x for x in rs if x["id"]==a.id),None)
+  if not r:die("unknown requirement")
+  if a.status not in ("active","blocked","unknown"):die("status must be active, blocked, or unknown")
+  old=r["status"];r["status"]=a.status;r["status_reason"]=a.reason;r["status_at"]=now();put_reqs(rs);event("RequirementStatusChanged",{"id":a.id,"from":old,"to":a.status,"reason":a.reason});json_or_print(r,a)
  else:json_or_print(rs,a)
 
 def checkpoint_cmd(a):
@@ -377,11 +388,17 @@ def baseline_cmd(a):
  if r.returncode==0:die("baseline unexpectedly passes; test does not demonstrate missing behavior")
  c["receipts"]["baseline"]="evidence/"+c["id"]+"/baseline.json";put_state(s);event("BaselineCaptured",{"checkpoint":c["id"],"evidence_hash":rec["evidence_hash"]});print("baseline FAIL captured as expected")
 
+def sandbox_image():
+ cfg=load(rp("config.json"),{})
+ if cfg.get("sandbox_image"):return cfg["sandbox_image"]
+ if (root()/"package.json").exists():return "node:22-bookworm-slim"
+ return "python:3.12-slim"
 def sandbox_run(cmd):
  engine=shutil.which("docker") or shutil.which("podman")
  if not engine:die("sandbox required but docker/podman unavailable")
- image="python:3.12-slim"
- return run([engine,"run","--rm","--network","none","-v",f"{root()}:/work:ro","-w","/work",image,"sh","-lc",cmd])
+ image=sandbox_image()
+ script=f"cp -a /src/. /work/ && cd /work && {cmd}"
+ return run([engine,"run","--rm","--network","none","--tmpfs","/work:rw,size=2g","-v",f"{root()}:/src:ro",image,"sh","-lc",script])
 
 def verify_cmd(a):
  s=state();c=cp(s,a.id)
@@ -671,6 +688,22 @@ def report_cmd(a):
  ])
  print(rp("reports","assurance.html"));print(rp("reports","assurance.pdf"))
 
+def dashboard_cmd(a):
+ rep=assurance_report();rp("reports").mkdir(parents=True,exist_ok=True)
+ checkpoint_cards=[]
+ for c in state()["checkpoints"]:
+  errs=checkpoint_errors(state(),c)
+  gates=" ".join(f"<span class='gate {html.escape(v)}'>{html.escape(g)}:{html.escape(v)}</span>" for g,v in c["gates"].items())
+  problems="<ul>"+"".join(f"<li>{html.escape(x)}</li>" for x in errs)+"</ul>" if errs else "<p class='ok'>Evidence current</p>"
+  checkpoint_cards.append(f"<article><h2>{html.escape(c['id'])} — {html.escape(c['title'])}</h2><p>Status <b>{html.escape(c['status'])}</b> · Risk <b>{html.escape(c['risk'])}</b></p><div>{gates}</div>{problems}<details><summary>Requirements</summary><pre>{html.escape(json.dumps(c['requirements'],indent=2))}</pre></details></article>")
+ payload=html.escape(json.dumps(rep,indent=2))
+ page=f"""<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Roach Evidence Dashboard</title>
+<style>body{{font:15px system-ui;background:#f5f5f2;color:#111;max-width:1100px;margin:auto;padding:32px}}header,article{{background:#fff;border:1px solid #ddd;border-radius:12px;padding:22px;margin:16px 0}}.gate{{display:inline-block;padding:4px 7px;margin:3px;border-radius:999px;background:#eee}}.passed{{background:#dff5e3}}.failed{{background:#ffdede}}.pending{{background:#fff2cc}}.ok{{color:#176b2c;font-weight:700}}pre{{overflow:auto}}summary{{cursor:pointer}}</style>
+<header><p>ROACH LOOP / {PROTOCOL}</p><h1>{html.escape(rep['project'])}</h1><p>Head <code>{head()}</code> · Project verifier <b>{'VALID' if not rep['errors'] else 'INVALID'}</b></p></header>
+{''.join(checkpoint_cards)}
+<article><h2>Full assurance JSON</h2><details><summary>Open record</summary><pre>{payload}</pre></details></article>"""
+ path=rp("reports","dashboard.html");path.write_text(page);print(path)
+
 def export_cmd(a):
  data={"protocol":PROTOCOL,"head":head(),"valid":not all_project_errors(),"errors":all_project_errors(),"status":json.loads(capture_status_json())}
  save(Path(a.path),data);json_or_print(data,a)
@@ -686,7 +719,15 @@ def benchmark_cmd(a):
  if a.action=="record":
   x={"name":a.name,"mode":a.mode,"requirements_missed":a.requirements_missed,"bugs":a.bugs,"false_done":a.false_done,"tokens":a.tokens,"seconds":a.seconds,"created_at":now()};xs.append(x);save(rp("benchmarks.json"),xs);event("BenchmarkRecorded",x);json_or_print(x,a)
  else:
-  summary={"runs":len(xs),"records":xs};json_or_print(summary,a)
+  groups={}
+  for x in xs:
+   g=groups.setdefault(x.get("mode") or "unknown",{"runs":0,"requirements_missed":0,"bugs":0,"false_done":0,"tokens":0,"seconds":0.0})
+   g["runs"]+=1
+   for k in ("requirements_missed","bugs","false_done","tokens","seconds"):g[k]+=x.get(k,0)
+  for g in groups.values():
+   n=max(g["runs"],1)
+   g["averages"]={k:g[k]/n for k in ("requirements_missed","bugs","false_done","tokens","seconds")}
+  summary={"runs":len(xs),"by_mode":groups,"records":xs};json_or_print(summary,a)
 
 def threat_cmd(a):
  doc={"protected_against":["premature completion claims","stale evidence","record/work disagreement","silent requirement drift","evidence tampering","gate skipping","reviewer identity reuse","secret leakage in evidence"],
@@ -713,7 +754,7 @@ def parser():
  p=argparse.ArgumentParser(prog="roach",description="Roach Loop proof-carrying development kernel");sp=p.add_subparsers(dest="cmd",required=True)
  def jout(q):q.add_argument("--json",action="store_true")
  q=sp.add_parser("init");q.add_argument("--name",required=True);q.add_argument("--profile",choices=PROFILE_POLICY,default="standard");q.set_defaults(fn=init_cmd)
- q=sp.add_parser("requirement");q.add_argument("action",choices=["add","list","supersede"]);q.add_argument("id",nargs="?");q.add_argument("statement",nargs="?");q.add_argument("--kind",choices=["functional","quality"],default="functional");q.add_argument("--priority",default="required");q.add_argument("--acceptance",action="append");q.add_argument("--conflicts",action="append");q.add_argument("--by");jout(q);q.set_defaults(fn=requirement_cmd)
+ q=sp.add_parser("requirement");q.add_argument("action",choices=["add","list","supersede","status"]);q.add_argument("id",nargs="?");q.add_argument("statement",nargs="?");q.add_argument("--kind",choices=["functional","quality"],default="functional");q.add_argument("--priority",default="required");q.add_argument("--acceptance",action="append");q.add_argument("--conflicts",action="append");q.add_argument("--by");q.add_argument("--status");q.add_argument("--reason");jout(q);q.set_defaults(fn=requirement_cmd)
  q=sp.add_parser("checkpoint");q.add_argument("action",choices=["add"]);q.add_argument("id");q.add_argument("title");q.add_argument("--verify",required=True);q.add_argument("--baseline-verify");q.add_argument("--mutation");q.add_argument("--requirements",default="");q.add_argument("--files",default="");q.add_argument("--risk",choices=RISK_ORDER);q.add_argument("--no-ui",action="store_true");jout(q);q.set_defaults(fn=checkpoint_cmd)
  for name,fn in [("start",start_cmd),("baseline",baseline_cmd),("check",check_cmd),("audit",audit_cmd),("seal",seal_cmd)]:
   q=sp.add_parser(name);q.add_argument("id");q.set_defaults(fn=fn)
@@ -740,6 +781,7 @@ def parser():
  q=sp.add_parser("prepush");q.add_argument("action",choices=["install"]);q.set_defaults(fn=prepush_cmd)
  q=sp.add_parser("release");q.add_argument("version");q.add_argument("--tag",action="store_true");jout(q);q.set_defaults(fn=release_cmd)
  q=sp.add_parser("report");q.set_defaults(fn=report_cmd)
+ q=sp.add_parser("dashboard");q.set_defaults(fn=dashboard_cmd)
  q=sp.add_parser("export");q.add_argument("path");jout(q);q.set_defaults(fn=export_cmd)
  q=sp.add_parser("benchmark");q.add_argument("action",choices=["record","summary"]);q.add_argument("--name");q.add_argument("--mode");q.add_argument("--requirements-missed",type=int,default=0);q.add_argument("--bugs",type=int,default=0);q.add_argument("--false-done",type=int,default=0);q.add_argument("--tokens",type=int,default=0);q.add_argument("--seconds",type=float,default=0);jout(q);q.set_defaults(fn=benchmark_cmd)
  q=sp.add_parser("threat-model");jout(q);q.set_defaults(fn=threat_cmd)
