@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop Gate Plugin",
+  "type": "object",
+  "required": [
+    "command",
+    "proof",
+    "requires"
+  ],
+  "properties": {
+    "command": {
+      "type": "string"
+    },
+    "proof": {
+      "type": "string"
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
