@@ -21,12 +21,20 @@ jobs:
         run: python scripts/roach.py verify CP-SELF
       - name: Human-authority fixture for self-test
         run: python scripts/roach.py approve CP-SELF --approver "CI self-dogfood fixture" --note "This fixture tests lifecycle mechanics; it is not a substitute for real product acceptance."
+      - name: Built-in specialized providers
+        run: |
+          python scripts/providers.py security
+          python scripts/providers.py accessibility
+          python scripts/providers.py performance
+          python scripts/providers.py migration
       - name: Deterministic audit and seal
         run: |
           python scripts/roach.py audit CP-SELF
           python scripts/roach.py seal CP-SELF
           python scripts/roach.py verify-project
           python scripts/roach.py report
+          python scripts/roach.py dashboard
+          python scripts/roach.py export .roach/reports/live-proof.json
       - uses: actions/upload-artifact@v4
         with:
           name: roach-self-dogfood-evidence
