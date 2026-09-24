@@ -1,1 +1,25 @@
-{"cleanUrls":true,"rewrites":[{"source":"/","destination":"/site/index.html"},{"source":"/how-it-works","destination":"/site/how-it-works.html"},{"source":"/launch","destination":"/site/launch.html"}]}
+{
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/site/index.html"
+    },
+    {
+      "source": "/how-it-works",
+      "destination": "/site/how-it-works.html"
+    },
+    {
+      "source": "/launch",
+      "destination": "/site/launch.html"
+    },
+    {
+      "source": "/capabilities",
+      "destination": "/site/capabilities.html"
+    },
+    {
+      "source": "/proof",
+      "destination": "/site/proof.html"
+    }
+  ]
+}
