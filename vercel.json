@@ -1,0 +1,1 @@
+{"cleanUrls":true,"rewrites":[{"source":"/","destination":"/site/index.html"},{"source":"/how-it-works","destination":"/site/how-it-works.html"},{"source":"/launch","destination":"/site/launch.html"}]}
