@@ -126,6 +126,28 @@ def environment_fingerprint():
  locks={n:file_hash(n) for n in lock_names if (root()/n).is_file()}
  engines=[x for x in ("docker","podman") if shutil.which(x)]
  return {"os":platform.platform(),"python":platform.python_version(),"locks":locks,"container_engines":engines}
+def write_simple_pdf(path,lines):
+ # Minimal single-page PDF writer; keeps report generation dependency-free.
+ safe=[]
+ for line in lines[:48]:
+  line=str(line).replace("\\","\\\\").replace("(","\\(").replace(")","\\)")
+  safe.append(line[:110])
+ stream="BT /F1 10 Tf 50 760 Td 14 TL "+(" Tj T* ".join(f"({x})" for x in safe))+" Tj ET"
+ objs=[
+  "<< /Type /Catalog /Pages 2 0 R >>",
+  "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+  "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>",
+  f"<< /Length {len(stream.encode())} >>\nstream\n{stream}\nendstream",
+  "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+ ]
+ data=b"%PDF-1.4\n"; offsets=[0]
+ for i,o in enumerate(objs,1):
+  offsets.append(len(data));data+=f"{i} 0 obj\n{o}\nendobj\n".encode()
+ xref=len(data);data+=f"xref\n0 {len(objs)+1}\n0000000000 65535 f \n".encode()
+ for off in offsets[1:]:data+=f"{off:010d} 00000 n \n".encode()
+ data+=f"trailer << /Size {len(objs)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+ Path(path).write_bytes(data)
+
 def capability_model():
  tools=["git","python3","docker","podman","semgrep","npm","npx","pytest","node","rg"]
  return {x:bool(shutil.which(x)) for x in tools}
@@ -422,7 +444,13 @@ def finding_cmd(a):
 def approve_cmd(a):
  s=state();c=cp(s,a.id)
  if c["status"]!="adversarial_verified" and s["profile"]!="fast":die("human approval requires adversarial verification")
- artifact=a.artifact or head();rec=write_evidence(c["id"],"human",{"proof_type":"human-judgment","proof_strength":"subjective-acceptance","approver":a.approver,"artifact":artifact,"head":head(),"decision":"approved","note":a.note})
+ artifact=a.artifact or head();artifact_record={"kind":"git-head","value":head()}
+ if a.artifact:
+  p=Path(a.artifact)
+  if not p.is_absolute():p=root()/p
+  if p.is_file():artifact_record={"kind":"file","path":str(p.relative_to(root())) if p.is_relative_to(root()) else str(p),"sha256":digest_bytes(p.read_bytes())}
+  elif a.artifact!=head():die("--artifact must be current HEAD or an existing file")
+ rec=write_evidence(c["id"],"human",{"proof_type":"human-judgment","proof_strength":"subjective-acceptance","approver":a.approver,"artifact":artifact_record,"head":head(),"decision":"approved","note":a.note})
  c["gates"]["human"]="passed"
  if "human_accepted" in TRANSITIONS.get(c["status"],set()):transition(c,"human_accepted")
  put_state(s);event("HumanApproved",{"checkpoint":c["id"],"artifact":artifact,"approver":a.approver,"evidence_hash":rec["evidence_hash"]});print("human approved",c["id"])
@@ -584,6 +612,30 @@ def next_cmd(a):
     "human_accepted":f"python3 scripts/roach.py audit {c['id']}","audited":f"python3 scripts/roach.py seal {c['id']}","blocked":"resolve blocker","sealed":"sealed"}
  print(f"{c['id']} — {c['title']}\nStatus: {c['status']}\nRisk: {c['risk']}\nRequirements: {', '.join(c['requirements']) or 'none'}\nNext: {m.get(c['status'],c['status'])}")
 
+def environment_cmd(a):
+ fp=environment_fingerprint()
+ if a.action=="freeze":
+  save(rp("environment.json"),fp);event("EnvironmentFrozen",fp);json_or_print(fp,a)
+ else:
+  frozen=load(rp("environment.json"),None)
+  if frozen is None:die("no frozen environment; run environment freeze")
+  current=environment_fingerprint();out={"matches":frozen==current,"frozen":frozen,"current":current};json_or_print(out,a)
+  if frozen!=current:raise SystemExit(1)
+
+def reproduce_cmd(a):
+ s=state();c=cp(s,a.id);p=evidence_file(c["id"],"behavior")
+ if not p.exists():die("no behavior receipt")
+ rec=load(p);current=environment_fingerprint()
+ if rec.get("environment")!=current and not a.allow_environment_drift:die("environment differs from recorded receipt")
+ r=run(rec["command"]);out={"checkpoint":c["id"],"command":rec["command"],"exit_code":r.returncode,"recorded_exit_code":rec.get("exit_code"),"reproduced":r.returncode==rec.get("exit_code"),"environment_matches":rec.get("environment")==current}
+ json_or_print(out,a)
+ if not out["reproduced"]:raise SystemExit(1)
+
+def provenance_cmd(a):
+ prompt_hash=digest_text(a.prompt) if a.prompt else None
+ rec={"agent":a.agent,"model":a.model,"tool":a.tool,"skill_version":a.skill_version,"prompt_hash":prompt_hash,"input_commit":a.input_commit or head(),"output_commit":a.output_commit or head(),"at":now()}
+ event("AgentProvenance",rec,actor=a.agent);save(rp("provenance",str(int(time.time()*1000))+".json"),rec);json_or_print(rec,a)
+
 def prepush_cmd(a):
  p=root()/".git"/"hooks"/"pre-push";p.write_text("#!/usr/bin/env bash\nset -e\npython3 scripts/roach.py verify-project\n");p.chmod(0o755);print("installed",p)
 
@@ -609,7 +661,13 @@ def report_cmd(a):
  save(rp("reports","assurance.json"),rep)
  rows="".join(f"<tr><td>{html.escape(c['id'])}</td><td>{html.escape(c['status'])}</td><td>{html.escape(c['risk'])}</td><td>{'current' if not checkpoint_errors(state(),c) else 'stale/invalid'}</td></tr>" for c in state()["checkpoints"])
  page=f"""<!doctype html><meta charset=utf-8><title>Roach Assurance Report</title><style>body{{font:16px system-ui;max-width:1000px;margin:40px auto;padding:0 20px}}table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ddd;padding:8px;text-align:left}}code{{background:#eee;padding:2px 4px}}</style><h1>{html.escape(rep['project'])} assurance report</h1><p>Protocol <code>{PROTOCOL}</code> · head <code>{head()}</code></p><p>Validity: <strong>{'VALID' if not rep['errors'] else 'INVALID'}</strong></p><h2>Checkpoints</h2><table><tr><th>ID</th><th>Status</th><th>Risk</th><th>Evidence</th></tr>{rows}</table><h2>Errors</h2><pre>{html.escape(json.dumps(rep['errors'],indent=2))}</pre>"""
- (rp("reports","assurance.html")).write_text(page);print(rp("reports","assurance.html"))
+ (rp("reports","assurance.html")).write_text(page)
+ write_simple_pdf(rp("reports","assurance.pdf"),[
+  f"Roach Loop assurance report — {rep['project']}",f"Protocol: {PROTOCOL}",f"Head: {head()}",f"Validity: {'VALID' if not rep['errors'] else 'INVALID'}",
+  f"Requirements: {len(rep['requirements'])}",f"Checkpoints: {len(rep['checkpoints'])}",f"Open findings: {len([x for x in rep['findings'] if x['status']=='open'])}",
+  *([f"ERROR: {x}" for x in rep['errors'][:30]] or ["No verifier errors."])
+ ])
+ print(rp("reports","assurance.html"));print(rp("reports","assurance.pdf"))
 
 def export_cmd(a):
  data={"protocol":PROTOCOL,"head":head(),"valid":not all_project_errors(),"errors":all_project_errors(),"status":json.loads(capture_status_json())}
@@ -674,6 +732,9 @@ def parser():
  for name,fn in [("status",status_cmd),("doctor",doctor_cmd),("capabilities",capability_cmd),("verify-project",verify_project_cmd)]:
   q=sp.add_parser(name);jout(q);q.set_defaults(fn=fn)
  q=sp.add_parser("next");q.set_defaults(fn=next_cmd)
+ q=sp.add_parser("environment");q.add_argument("action",choices=["freeze","check"]);jout(q);q.set_defaults(fn=environment_cmd)
+ q=sp.add_parser("reproduce");q.add_argument("id");q.add_argument("--allow-environment-drift",action="store_true");jout(q);q.set_defaults(fn=reproduce_cmd)
+ q=sp.add_parser("provenance");q.add_argument("--agent",required=True);q.add_argument("--model",default="unknown");q.add_argument("--tool",default="unknown");q.add_argument("--skill-version",default="unknown");q.add_argument("--prompt");q.add_argument("--input-commit");q.add_argument("--output-commit");jout(q);q.set_defaults(fn=provenance_cmd)
  q=sp.add_parser("prepush");q.add_argument("action",choices=["install"]);q.set_defaults(fn=prepush_cmd)
  q=sp.add_parser("release");q.add_argument("version");q.add_argument("--tag",action="store_true");jout(q);q.set_defaults(fn=release_cmd)
  q=sp.add_parser("report");q.set_defaults(fn=report_cmd)
