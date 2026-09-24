@@ -1,29 +1,28 @@
 ---
 name: ui-reviewer
-description: Perfectionist visual-review protocol for Gate 2. Compares implementation screenshots against the reference (existing app or HTML prototype) in matching states using a vision-capable model, listing every difference with severity and on-screen location. Use at Gate 2 for checkpoints with needs_ui_gate=true.
+description: Perform Roach Loop UI review against matching-state reference artifacts and record screenshots plus semantic verdict as evidence.
 ---
+# Roach Loop UI Reviewer
 
-# UI Reviewer
+Use only when the checkpoint declares UI work. A logic-only checkpoint must be created with `--no-ui`; UI cannot be silently skipped later.
 
-Visual equivalence is almost impossible to specify in a prompt — a human notices a title that's slightly too small or a divider that's slightly too dark, but those details never make it into instructions, and pixel-diffing fails across UI frameworks. So instead of specifying every detail up front, this gate **looks** at the result, describes what's wrong, locates it, and requires another attempt.
+Capture reference and implementation in the same state and scope. Archive screenshots/files, then attach them:
+```bash
+python3 scripts/roach.py external add --id UI-REF-001 --kind ui-reference --checkpoint <CP> --path <reference.png> --source human-reference
+python3 scripts/roach.py external add --id UI-IMPL-001 --kind ui-capture --checkpoint <CP> --path <implementation.png> --source browser-capture
+```
 
-## Setup
+A fresh vision reviewer compares structure, spacing, alignment, size, state behavior, errors, and interaction. Any fixable blocker fails the gate.
 
-- **Reviewer model:** a vision-capable model with strong spatial awareness (the original workflow used Gemini for this; any model that can judge sizes, spacing, and alignment from screenshots works). Launch it in a **fresh session** — it must not see the project's instructions or the implementation's code. It judges only: reference vs. implementation.
-- **Two reviewers, side by side:** one judges how the screen **looks** (structure, spacing, alignment, sizes), the other judges how it **behaves** (interactions, state transitions). Neither sees project instructions. The orchestrator merges their reports into one pass/fail.
+Record:
+```bash
+python3 scripts/roach.py review <CP> ui fail --reviewer ui-a --model <model> --finding "..."
+# or after zero blockers:
+python3 scripts/roach.py review <CP> ui pass --reviewer ui-a --model <model>
+```
 
-## Protocol
-
-1. **Capture in matching states.** Screenshot the implementation and the reference showing the *same* screen in the *same* state (e.g., both showing the unsubmitted form). State mismatches invalidate the comparison — if the reviewer reports INVALID (e.g., one shows an unfulfilled order, the other a fulfilled one), re-capture both in the same state and run again.
-2. **Limit scope to the checkpoint.** For a skeleton checkpoint, review only what it built (e.g., "check only the navigation bar and title"). The scope grows with each checkpoint. State the scope explicitly in the review request.
-3. **Judge proportionally.** Compare sizes relative to each screenshot's dimensions, so undersized/oversized text is caught even across different render sizes.
-4. **Report format.** The reviewer must list **every** difference it finds, each with:
-   - **Description** (what differs)
-   - **Severity** (blocker / minor)
-   - **On-screen location** (where: e.g., "top nav, right of title")
-5. **Blocker rule.** Any visual difference that can be fixed in code is a **blocker** by default. Minors are noted but don't fail the gate.
-6. **Verdict.** Pass only with zero blockers. Otherwise return the blocker list to the builder, who fixes and re-runs this gate.
-
-## After the gate
-
-Archive the screenshots and the review report under `.roach/evidence/<checkpoint-id>/ui-review/`. They are part of the checkpoint's evidence — and the record of what "matching" meant.
+For accessibility, also run the deterministic provider:
+```bash
+python3 scripts/roach.py plugin run accessibility --checkpoint <CP>
+```
+when the project's assurance policy calls for it.
