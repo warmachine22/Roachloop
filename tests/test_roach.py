@@ -44,6 +44,10 @@ class RoachTests(unittest.TestCase):
   d=self.repo();self.init(d)
   p=d/".roach"/"ledger.jsonl";lines=p.read_text().splitlines();o=json.loads(lines[0]);o["event"]="tampered";lines[0]=json.dumps(o);p.write_text("\n".join(lines)+"\n")
   self.assertNotEqual(self.rr(d,"verify-project").returncode,0)
+ def test_manual_gate_pass_without_ledger_event_is_rejected(self):
+  d=self.repo();self.init(d);self.addcp(d,no_ui=True)
+  s=json.loads((d/".roach"/"state.json").read_text());s["checkpoints"][0]["gates"]["behavior"]="passed";(d/".roach"/"state.json").write_text(json.dumps(s))
+  self.assertNotEqual(self.rr(d,"check","CP-001").returncode,0)
  def test_evidence_manifest_tamper_detected(self):
   d=self.repo();self.init(d);self.addcp(d,no_ui=True);self.ok(self.rr(d,"start","CP-001"));self.ok(self.rr(d,"verify","CP-001"))
   p=d/".roach"/"evidence"/"CP-001"/"behavior.json";p.write_text(p.read_text()+" ")
