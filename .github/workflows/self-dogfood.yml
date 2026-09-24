@@ -1,0 +1,33 @@
+name: Roach Loop Self Dogfood
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Initialize ephemeral Roach project
+        run: |
+          python scripts/roach.py init --name "Roach Loop" --profile fast
+          python scripts/roach.py requirement add FR-001 "The Roach core hostile test suite passes"
+          python scripts/roach.py checkpoint add CP-SELF "Verify Roach core"             --requirements FR-001             --files "scripts/roach.py,scripts/providers.py,tests/test_roach.py"             --verify "python -m unittest discover -s tests -v"             --no-ui
+          python scripts/roach.py start CP-SELF
+      - name: Machine verification
+        run: python scripts/roach.py verify CP-SELF
+      - name: Human-authority fixture for self-test
+        run: python scripts/roach.py approve CP-SELF --approver "CI self-dogfood fixture" --note "This fixture tests lifecycle mechanics; it is not a substitute for real product acceptance."
+      - name: Deterministic audit and seal
+        run: |
+          python scripts/roach.py audit CP-SELF
+          python scripts/roach.py seal CP-SELF
+          python scripts/roach.py verify-project
+          python scripts/roach.py report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: roach-self-dogfood-evidence
+          path: .roach/
