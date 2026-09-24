@@ -1,102 +1,28 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Roach Loop v3 State",
+  "type": "object",
+  "required": [
+    "protocol",
+    "project",
+    "profile",
+    "current_checkpoint",
+    "checkpoints"
+  ],
   "properties": {
-    "checkpoints": {
-      "additionalProperties": {
-        "properties": {
-          "evidence_commit": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "gates": {
-            "properties": {
-              "adversarial": {
-                "enum": [
-                  "pending",
-                  "passed",
-                  "skipped",
-                  "failed"
-                ]
-              },
-              "audit": {
-                "enum": [
-                  "pending",
-                  "passed",
-                  "skipped",
-                  "failed"
-                ]
-              },
-              "behavior": {
-                "enum": [
-                  "pending",
-                  "passed",
-                  "skipped",
-                  "failed"
-                ]
-              },
-              "human": {
-                "enum": [
-                  "pending",
-                  "passed",
-                  "skipped",
-                  "failed"
-                ]
-              },
-              "ui": {
-                "enum": [
-                  "pending",
-                  "passed",
-                  "skipped",
-                  "failed"
-                ]
-              }
-            },
-            "type": "object"
-          },
-          "needs_ui_gate": {
-            "type": "boolean"
-          },
-          "requirement_ids": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "scope": {
-            "type": "string"
-          },
-          "status": {
-            "enum": [
-              "planned",
-              "in_progress",
-              "done",
-              "blocked",
-              "superseded"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "ui_skipped_reason": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "verify": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "title",
-          "status",
-          "gates"
-        ],
-        "type": "object"
-      },
-      "type": "object"
+    "protocol": {
+      "const": "roach-loop/3.0"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profile": {
+      "enum": [
+        "fast",
+        "standard",
+        "strict"
+      ]
     },
     "current_checkpoint": {
       "type": [
@@ -104,34 +30,14 @@
         "null"
       ]
     },
-    "method": {
-      "const": "roachloop"
-    },
-    "method_version": {
+    "created_at": {
       "type": "string"
     },
-    "phase": {
-      "enum": [
-        "discovery",
-        "planning",
-        "execution",
-        "complete"
-      ]
-    },
-    "product_accepted": {
-      "type": "boolean"
-    },
-    "project": {
-      "type": "string"
+    "checkpoints": {
+      "type": "array",
+      "items": {
+        "$ref": "checkpoint.schema.json"
+      }
     }
-  },
-  "required": [
-    "method",
-    "project",
-    "phase",
-    "current_checkpoint",
-    "checkpoints"
-  ],
-  "title": "Roach Loop STATE.json",
-  "type": "object"
+  }
 }
