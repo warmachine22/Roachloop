@@ -107,11 +107,18 @@ class RoachTests(unittest.TestCase):
  def test_threat_model(self):
   d=self.repo();self.init(d);r=self.rr(d,"threat-model","--json");self.ok(r);self.assertIn("protected_against",json.loads(r.stdout))
  def test_benchmark_record(self):
-  d=self.repo();self.init(d);self.ok(self.rr(d,"benchmark","record","--name","trial","--mode","roach","--tokens","100"));r=self.rr(d,"benchmark","summary","--json");self.ok(r);self.assertEqual(json.loads(r.stdout)["runs"],1)
+  d=self.repo();self.init(d);self.ok(self.rr(d,"benchmark","record","--name","trial","--mode","roach","--tokens","100"));r=self.rr(d,"benchmark","summary","--json");self.ok(r);o=json.loads(r.stdout);self.assertEqual(o["runs"],1);self.assertEqual(o["by_mode"]["roach"]["averages"]["tokens"],100)
  def test_examples(self):
   d=self.repo();self.init(d);self.ok(self.rr(d,"examples"));self.assertTrue((d/"examples"/"web-app.md").exists())
  def test_environment_freeze_and_check(self):
   d=self.repo();self.init(d);self.ok(self.rr(d,"environment","freeze"));self.ok(self.rr(d,"environment","check"))
+ def test_requirement_can_be_explicitly_unknown(self):
+  d=self.repo();self.init(d);self.ok(self.rr(d,"requirement","add","FR-001","Unknown external behavior"));self.ok(self.rr(d,"requirement","status","FR-001","--status","unknown","--reason","awaiting vendor"))
+  rs=json.loads((d/".roach"/"requirements.json").read_text());self.assertEqual(rs[0]["status"],"unknown")
+ def test_dashboard_generation(self):
+  d=self.repo();self.init(d);self.addcp(d);self.ok(self.rr(d,"dashboard"));self.assertTrue((d/".roach"/"reports"/"dashboard.html").exists())
+ def test_reproduce_receipt(self):
+  d=self.repo();self.init(d);self.addcp(d,no_ui=True);self.ok(self.rr(d,"start","CP-001"));self.ok(self.rr(d,"verify","CP-001"));self.ok(self.rr(d,"reproduce","CP-001"))
  def test_provenance_hashes_prompt(self):
   d=self.repo();self.init(d);r=self.rr(d,"provenance","--agent","codex","--model","test","--prompt","secret prompt","--json");self.ok(r);o=json.loads(r.stdout);self.assertTrue(o["prompt_hash"]);self.assertNotIn("secret prompt",json.dumps(o))
  def test_human_artifact_must_exist_or_be_head(self):
